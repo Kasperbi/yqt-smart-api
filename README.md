@@ -44,10 +44,25 @@ Each watch becomes a device with:
 - a Do Not Disturb schedule sensor. It reads the watch's shared settings
   endpoint, which is traced from APK analysis only and not yet confirmed
   against a live server, so it can legitimately show "Unknown" -- the raw
-  server response is always available as an attribute on the sensor. There is
-  no way to *set* the schedule from Home Assistant yet (only the CLI's
-  `set-dnd` command below); see [`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md)
-  for details.
+  server response is always available as an attribute on the sensor.
+
+The integration also registers a **`yqt.set_dnd_schedule`** service to write
+the schedule, usable from Developer Tools, scripts, or automations:
+
+```yaml
+action: yqt.set_dnd_schedule
+target:
+  device_id: YOUR_WATCH_DEVICE_ID
+data:
+  periods:
+    - "22:00-07:00:mon,tue,wed,thu,fri"
+```
+
+Omit `periods` entirely (or pass an empty list) to clear/disable the
+schedule. Only works for current-generation (`DC == 2`) watches, and -- like
+the sensor above -- is traced from APK analysis only; see
+[`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md) for details and
+verify your watch actually honors it before relying on it.
 
 ## Command-line client
 

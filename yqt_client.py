@@ -23,32 +23,12 @@ from custom_components.yqt.core.protocol import (
 )
 from custom_components.yqt.core.sync_client import YQTClient
 
-_DND_WEEKDAY_NAMES = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
-
-
 def _parse_dnd_period(value: str) -> DndPeriod:
     """Parse a CLI "--period" value like "22:00-07:00:mon,tue,wed,thu,fri"."""
     try:
-        time_part, days_part = value.rsplit(":", 1)
-        start, end = time_part.split("-")
+        return DndPeriod.from_cli_string(value)
     except ValueError as exc:
-        raise SystemExit(
-            f"invalid --period {value!r}; expected START-END:DAYS, e.g. 22:00-07:00:mon,tue,wed,thu,fri"
-        ) from exc
-
-    weekdays: set[int] = set()
-    for token in days_part.split(","):
-        name = token.strip().lower()
-        if name not in _DND_WEEKDAY_NAMES:
-            raise SystemExit(
-                f"invalid weekday {token!r} in --period {value!r}; use sun,mon,tue,wed,thu,fri,sat"
-            )
-        weekdays.add(_DND_WEEKDAY_NAMES.index(name))
-
-    try:
-        return DndPeriod(start=start, end=end, weekdays=frozenset(weekdays))
-    except ValueError as exc:
-        raise SystemExit(f"invalid --period {value!r}: {exc}") from exc
+        raise SystemExit(f"invalid --period: {exc}") from exc
 
 
 def _build_parser() -> argparse.ArgumentParser:

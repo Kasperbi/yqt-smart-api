@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urljoin
@@ -18,8 +19,11 @@ from .protocol import (
     DEFAULT_LANGUAGE,
     DEFAULT_SIGN_FLAG,
     FIND_SET_INFO_PATH_SUFFIX,
+    MAX_DND_PERIODS,
     REGIONS,
     SUCCESS_STATUSES,
+    UP_NEW_DND_SET_INFO_PATH,
+    DndPeriod,
     YQTAuthError,
     YQTConnectionError,
     YQTError,
@@ -208,6 +212,36 @@ class YQTApiClient:
             self._session_path(FIND_SET_INFO_PATH_SUFFIX),
             params=payload,
         )
+
+    async def async_set_dnd_schedule(self, did: str, periods: Sequence[DndPeriod]) -> dict[str, Any]:
+        """Write the Do Not Disturb schedule for current-generation (DC == 2) watches.
+
+        Mirrors YQTClient.set_dnd_schedule (see sync_client.py). Unlike most
+        calls here, upNewDndSetInfo is a root-level endpoint (no "/app/{sid}"
+        prefix). Traced from APK analysis only; not yet confirmed against a
+        live account/device.
+        """
+        if len(periods) > MAX_DND_PERIODS:
+            raise YQTError(f"async_set_dnd_schedule supports at most {MAX_DND_PERIODS} periods, got {len(periods)}")
+        if not self.session_id:
+            raise YQTError("session_id is required; call async_login() first")
+
+        watch = await self._async_ensure_watch(did)
+
+        padded_periods = list(periods) + [DndPeriod.disabled()] * (MAX_DND_PERIODS - len(periods))
+        payload: dict[str, Any] = {
+            "sid": self.session_id,
+            "did": watch.did,
+            "did_id": watch.did_id,
+            "language": self.language,
+        }
+        for index, period in enumerate(padded_periods, start=1):
+            payload[f"new_dnd{index}"] = period.to_period_string()
+            payload[f"new_dnd{index}_open"] = period.open_flag
+
+        response = await self._request_json("POST", UP_NEW_DND_SET_INFO_PATH, data=self._signed_params(payload))
+        self._ensure_status(response, SUCCESS_STATUSES)
+        return response
 
     async def _async_ensure_watch(self, did: str) -> YQTWatch:
         if did not in self._watches or not self.session_id:

@@ -65,5 +65,17 @@
         "name": "Request location"
       }
     }
+  },
+  "services": {
+    "set_dnd_schedule": {
+      "name": "Set Do Not Disturb schedule",
+      "description": "Write the watch's Do Not Disturb schedule. Traced from APK analysis only and not yet confirmed against a live device.",
+      "fields": {
+        "periods": {
+          "name": "Periods",
+          "description": "Up to 4 schedule windows, each as \"START-END:DAYS\", e.g. \"22:00-07:00:mon,tue,wed,thu,fri\". Omit entirely to clear/disable the schedule."
+        }
+      }
+    }
   }
 }

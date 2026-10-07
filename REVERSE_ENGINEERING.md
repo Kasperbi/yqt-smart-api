@@ -412,9 +412,13 @@ last position, and exposes:
   that endpoint's response shape is unconfirmed; it can legitimately read
   "Unknown" on a given account, and always exposes the raw response as a
   `raw_find_set_info` attribute so the real field names can be checked and
-  `extract_dnd_periods` corrected once this is tested live. Setting the
-  schedule (`set_dnd_schedule` / `upNewDndSetInfo`) is not yet wired up as a
-  Home Assistant service -- only the CLI's `set-dnd` command calls it so far.
+  `extract_dnd_periods` corrected once this is tested live.
+- a `yqt.set_dnd_schedule` service (writes the schedule via
+  `YQTApiClient.async_set_dnd_schedule` / `upNewDndSetInfo`), targeting one or
+  more watch devices and taking a `periods` list of `"START-END:DAYS"`
+  strings (the same format as the CLI's `--period`, parsed by
+  `DndPeriod.from_cli_string`). A failed call raises a `HomeAssistantError`
+  with the underlying message; it does not retry or fall back.
 
 Installation and user-facing feature documentation belongs in
 [`README.md`](README.md), rather than this protocol reference.

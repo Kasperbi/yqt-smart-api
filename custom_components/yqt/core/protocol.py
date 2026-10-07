@@ -36,6 +36,7 @@ MAX_DND_PERIODS = 4
 DND_OPEN_FLAG_ENABLED = "2"
 DND_OPEN_FLAG_DISABLED = "1"
 DISABLED_DND_PERIOD = "00:00-00:00-0000000"
+DND_CLI_WEEKDAY_NAMES = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +228,34 @@ class DndPeriod:
             raise ValueError(f"invalid DND weekday bitmap: {bitmap!r}")
         weekdays = frozenset(day for day, flag in enumerate(bitmap) if flag == "1")
         return cls(start=start, end=end, weekdays=weekdays, enabled=True)
+
+    @classmethod
+    def from_cli_string(cls, value: str) -> DndPeriod:
+        """Parse "START-END:DAYS", e.g. "22:00-07:00:mon,tue,wed,thu,fri".
+
+        Shared by the CLI's `--period` flag (yqt_client.py) and the
+        `set_dnd_schedule` Home Assistant service. Raises ValueError with a
+        human-readable message on anything malformed.
+        """
+        try:
+            time_part, days_part = value.rsplit(":", 1)
+            start, end = time_part.split("-")
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid period {value!r}; expected START-END:DAYS, "
+                "e.g. 22:00-07:00:mon,tue,wed,thu,fri"
+            ) from exc
+
+        weekdays: set[int] = set()
+        for token in days_part.split(","):
+            name = token.strip().lower()
+            if name not in DND_CLI_WEEKDAY_NAMES:
+                raise ValueError(
+                    f"invalid weekday {token!r} in period {value!r}; use sun,mon,tue,wed,thu,fri,sat"
+                )
+            weekdays.add(DND_CLI_WEEKDAY_NAMES.index(name))
+
+        return cls(start=start, end=end, weekdays=frozenset(weekdays))
 
 
 def extract_dnd_periods(payload: dict[str, Any]) -> list[DndPeriod] | None:

@@ -421,6 +421,19 @@ class DndPeriodTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             DndPeriod.from_period_string("22:00-07:00-01", open_flag="2")
 
+    def test_from_cli_string_parses_start_end_and_days(self) -> None:
+        period = DndPeriod.from_cli_string("22:00-07:00:mon,tue,wed,thu,fri")
+        self.assertEqual(
+            period,
+            DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1, 2, 3, 4, 5})),
+        )
+
+    def test_from_cli_string_rejects_malformed_input(self) -> None:
+        with self.assertRaises(ValueError):
+            DndPeriod.from_cli_string("not-a-period")
+        with self.assertRaises(ValueError):
+            DndPeriod.from_cli_string("22:00-07:00:mon,notaday")
+
 
 class ExtractDndPeriodsTestCase(unittest.TestCase):
     """extract_dnd_periods's best-effort parse of a (format-unconfirmed) v2_findSetInfo reply."""
@@ -636,6 +649,55 @@ class AsyncClientTransportTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(context_threads), 1)
         self.assertNotEqual(context_threads[0], threading.get_ident())
         self.assertIs(session.request.call_args.kwargs["ssl"], context)
+
+
+class AsyncDndScheduleClientTestCase(unittest.IsolatedAsyncioTestCase):
+    """YQTApiClient.async_set_dnd_schedule, the HA-service counterpart of YQTClient.set_dnd_schedule."""
+
+    def _client(self) -> YQTApiClient:
+        client = YQTApiClient(
+            MagicMock(),
+            region="europe",
+            loginname="demo@example.com",
+            password="password",
+        )
+        client.session_id = "abc123"
+        client._watches["9505445780"] = YQTWatch(
+            did="9505445780", did_id="165923436", model="g36f", nickname="", rolename=""
+        )
+        return client
+
+    async def test_posts_to_root_level_endpoint(self) -> None:
+        client = self._client()
+        periods = [DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1, 2, 3, 4, 5}))]
+
+        with patch.object(client, "_request_json", new=AsyncMock(return_value={"status": 1})) as mocked:
+            await client.async_set_dnd_schedule("9505445780", periods)
+
+        method, path = mocked.call_args.args
+        params = mocked.call_args.kwargs["data"]
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, UP_NEW_DND_SET_INFO_PATH)
+        self.assertEqual(params["sid"], "abc123")
+        self.assertEqual(params["did"], "9505445780")
+        self.assertEqual(params["did_id"], "165923436")
+        self.assertEqual(params["new_dnd1"], "22:00-07:00-0111110")
+        self.assertEqual(params["new_dnd1_open"], "2")
+        for index in (2, 3, 4):
+            self.assertEqual(params[f"new_dnd{index}"], DISABLED_DND_PERIOD)
+            self.assertEqual(params[f"new_dnd{index}_open"], "1")
+
+    async def test_rejects_more_than_four_periods(self) -> None:
+        client = self._client()
+        periods = [DndPeriod(start="22:00", end="07:00", weekdays=frozenset({day})) for day in range(5)]
+        with self.assertRaises(YQTError):
+            await client.async_set_dnd_schedule("9505445780", periods)
+
+    async def test_requires_a_session(self) -> None:
+        client = self._client()
+        client.session_id = None
+        with self.assertRaises(YQTError):
+            await client.async_set_dnd_schedule("9505445780", [])
 
 
 class IntegrationUnloadTestCase(unittest.TestCase):
