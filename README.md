@@ -21,7 +21,7 @@ Confirmed working:
 
 ### Install via HACS
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Niek&repository=yqt-smart-api&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Kasperbi&repository=yqt-smart-api&category=integration)
 
 1. Add this repository to HACS as a custom repository (category `Integration`).
 2. Install `YQT Smart` and restart Home Assistant.
@@ -41,6 +41,13 @@ Each watch becomes a device with:
 - a stale-location binary sensor
 - a button to request a fresh location
 - diagnostic sensors for nearby Wi-Fi access points and cell towers (disabled by default)
+- a Do Not Disturb schedule sensor. It reads the watch's shared settings
+  endpoint, which is traced from APK analysis only and not yet confirmed
+  against a live server, so it can legitimately show "Unknown" -- the raw
+  server response is always available as an attribute on the sensor. There is
+  no way to *set* the schedule from Home Assistant yet (only the CLI's
+  `set-dnd` command below); see [`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md)
+  for details.
 
 ## Command-line client
 
@@ -50,9 +57,17 @@ With [uv](https://docs.astral.sh/uv/) installed:
 ./yqt_client.py --region europe --account YOUR_EMAIL --password YOUR_PASSWORD devices
 ./yqt_client.py --region europe --account YOUR_EMAIL --password YOUR_PASSWORD last-position --did YOUR_DEVICE_ID
 ./yqt_client.py --region europe --account YOUR_EMAIL --password YOUR_PASSWORD fresh-position --did YOUR_DEVICE_ID
+./yqt_client.py --region europe --account YOUR_EMAIL --password YOUR_PASSWORD find-settings --did YOUR_DEVICE_ID
+./yqt_client.py --region europe --account YOUR_EMAIL --password YOUR_PASSWORD set-dnd --did YOUR_DEVICE_ID --period 22:00-07:00:mon,tue,wed,thu,fri
 ```
 
 Run `./yqt_client.py --help` for all commands. The CLI and integration share the same code in `custom_components/yqt/core/`.
+
+`set-dnd` writes the Do Not Disturb schedule for current-generation (`DC == 2`)
+watches; it's traced from APK analysis and not yet verified against a live
+device -- see [`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md) and
+[issue #13](https://github.com/Niek/yqt-smart-api/issues/13). Omit `--period`
+entirely to clear/disable the schedule.
 
 ## Disclaimer
 
