@@ -11,7 +11,12 @@ import custom_components.yqt as yqt
 from custom_components.yqt.const import DOMAIN
 from custom_components.yqt.core.async_client import YQTApiClient
 from custom_components.yqt.core.protocol import (
+    DISABLED_DND_PERIOD,
+    FIND_SET_INFO_PATH_SUFFIX,
     REGIONS,
+    UP_NEW_DND_SET_INFO_PATH,
+    DndPeriod,
+    YQTError,
     YQTResponseError,
     YQTWatch,
     YQTWatchState,
@@ -369,6 +374,105 @@ class ApiHelpersTestCase(unittest.TestCase):
         self.assertTrue(is_login_timeout_response({"status": 607, "message": "Login timeout,Please login agian!"}))
         self.assertTrue(is_login_timeout_response({"message": "Login timeout"}))
         self.assertFalse(is_login_timeout_response({"status": 1, "message": "OK"}))
+
+
+class DndPeriodTestCase(unittest.TestCase):
+    """DndPeriod formatting, per the APK tracing in GH issue #13 (untested live)."""
+
+    def test_to_period_string_encodes_weekday_bitmap_sunday_first(self) -> None:
+        # Monday-Friday -> "0111110" (Sunday..Saturday, Sunday first).
+        monday_to_friday = DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1, 2, 3, 4, 5}))
+        self.assertEqual(monday_to_friday.to_period_string(), "22:00-07:00-0111110")
+        self.assertEqual(monday_to_friday.open_flag, "2")
+
+        weekend_only = DndPeriod(start="12:00", end="13:00", weekdays=frozenset({0, 6}))
+        self.assertEqual(weekend_only.to_period_string(), "12:00-13:00-1000001")
+
+    def test_disabled_period_uses_zeroed_string_and_closed_flag(self) -> None:
+        disabled = DndPeriod.disabled()
+        self.assertEqual(disabled.to_period_string(), DISABLED_DND_PERIOD)
+        self.assertEqual(disabled.open_flag, "1")
+
+    def test_enabled_period_requires_at_least_one_weekday(self) -> None:
+        with self.assertRaises(ValueError):
+            DndPeriod(start="22:00", end="07:00", weekdays=frozenset())
+
+    def test_rejects_out_of_range_time_and_weekday(self) -> None:
+        with self.assertRaises(ValueError):
+            DndPeriod(start="25:00", end="07:00", weekdays=frozenset({1}))
+        with self.assertRaises(ValueError):
+            DndPeriod(start="22:00", end="07:99", weekdays=frozenset({1}))
+        with self.assertRaises(ValueError):
+            DndPeriod(start="22:00", end="07:00", weekdays=frozenset({7}))
+
+
+class DndScheduleClientTestCase(unittest.TestCase):
+    """YQTClient.find_set_info / set_dnd_schedule, per GH issue #13 (untested live)."""
+
+    def _client(self) -> YQTClient:
+        client = YQTClient(region="europe", session_id="abc123")
+        client._device_index["9505445780"] = {"did": "9505445780", "did_id": "165923436"}
+        return client
+
+    def test_find_set_info_uses_session_scoped_path(self) -> None:
+        client = self._client()
+        with patch.object(client, "_request_json", return_value={"status": 1, "message": "ok"}) as mocked:
+            client.find_set_info(did="9505445780")
+
+        method, path, _params = mocked.call_args.args
+        self.assertEqual(method, "GET")
+        self.assertEqual(path, f"/app/abc123{FIND_SET_INFO_PATH_SUFFIX}")
+
+    def test_set_dnd_schedule_posts_to_root_level_endpoint(self) -> None:
+        client = self._client()
+        periods = [DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1, 2, 3, 4, 5}))]
+
+        with patch.object(client, "_request_json", return_value={"status": 1, "message": "ok"}) as mocked:
+            client.set_dnd_schedule(did="9505445780", periods=periods)
+
+        method, path, params = mocked.call_args.args
+        self.assertEqual(method, "POST")
+        # upNewDndSetInfo is root-level, unlike the "/app/{sid}/S10APP/" calls.
+        self.assertEqual(path, UP_NEW_DND_SET_INFO_PATH)
+        self.assertEqual(params["sid"], "abc123")
+        self.assertEqual(params["did"], "9505445780")
+        self.assertEqual(params["did_id"], "165923436")
+        self.assertEqual(params["new_dnd1"], "22:00-07:00-0111110")
+        self.assertEqual(params["new_dnd1_open"], "2")
+
+    def test_set_dnd_schedule_pads_unused_slots_as_disabled(self) -> None:
+        client = self._client()
+        periods = [DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1}))]
+
+        with patch.object(client, "_request_json", return_value={"status": 1, "message": "ok"}) as mocked:
+            client.set_dnd_schedule(did="9505445780", periods=periods)
+
+        _method, _path, params = mocked.call_args.args
+        for index in (2, 3, 4):
+            self.assertEqual(params[f"new_dnd{index}"], DISABLED_DND_PERIOD)
+            self.assertEqual(params[f"new_dnd{index}_open"], "1")
+
+    def test_set_dnd_schedule_with_no_periods_disables_everything(self) -> None:
+        client = self._client()
+        with patch.object(client, "_request_json", return_value={"status": 1, "message": "ok"}) as mocked:
+            client.set_dnd_schedule(did="9505445780")
+
+        _method, _path, params = mocked.call_args.args
+        for index in (1, 2, 3, 4):
+            self.assertEqual(params[f"new_dnd{index}"], DISABLED_DND_PERIOD)
+            self.assertEqual(params[f"new_dnd{index}_open"], "1")
+
+    def test_set_dnd_schedule_rejects_more_than_four_periods(self) -> None:
+        client = self._client()
+        periods = [DndPeriod(start="22:00", end="07:00", weekdays=frozenset({day})) for day in range(5)]
+        with self.assertRaises(YQTError):
+            client.set_dnd_schedule(did="9505445780", periods=periods)
+
+    def test_set_dnd_schedule_requires_a_session(self) -> None:
+        client = YQTClient(region="europe")
+        client._device_index["9505445780"] = {"did": "9505445780", "did_id": "165923436"}
+        with self.assertRaises(YQTError):
+            client.set_dnd_schedule(did="9505445780")
 
 
 class TransportTestCase(unittest.TestCase):

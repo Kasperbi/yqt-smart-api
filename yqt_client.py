@@ -15,12 +15,40 @@ from pathlib import Path
 from custom_components.yqt.core.protocol import (
     DEFAULT_LANGUAGE,
     REGIONS,
+    DndPeriod,
     YQTError,
     YQTResponseError,
     photo_wall_filename,
     split_dids,
 )
 from custom_components.yqt.core.sync_client import YQTClient
+
+_DND_WEEKDAY_NAMES = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
+
+
+def _parse_dnd_period(value: str) -> DndPeriod:
+    """Parse a CLI "--period" value like "22:00-07:00:mon,tue,wed,thu,fri"."""
+    try:
+        time_part, days_part = value.rsplit(":", 1)
+        start, end = time_part.split("-")
+    except ValueError as exc:
+        raise SystemExit(
+            f"invalid --period {value!r}; expected START-END:DAYS, e.g. 22:00-07:00:mon,tue,wed,thu,fri"
+        ) from exc
+
+    weekdays: set[int] = set()
+    for token in days_part.split(","):
+        name = token.strip().lower()
+        if name not in _DND_WEEKDAY_NAMES:
+            raise SystemExit(
+                f"invalid weekday {token!r} in --period {value!r}; use sun,mon,tue,wed,thu,fri,sat"
+            )
+        weekdays.add(_DND_WEEKDAY_NAMES.index(name))
+
+    try:
+        return DndPeriod(start=start, end=end, weekdays=frozenset(weekdays))
+    except ValueError as exc:
+        raise SystemExit(f"invalid --period {value!r}: {exc}") from exc
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -99,6 +127,33 @@ def _build_parser() -> argparse.ArgumentParser:
     switches_parser = subparsers.add_parser("switches", help="Fetch device switch status.")
     switches_parser.add_argument("--did", required=True)
     switches_parser.add_argument("--did-id", default="")
+
+    find_settings_parser = subparsers.add_parser(
+        "find-settings", help="Fetch the shared watch-settings payload (DND schedule, SOS numbers, etc.)."
+    )
+    find_settings_parser.add_argument("--did", required=True)
+    find_settings_parser.add_argument("--did-id", default="")
+
+    set_dnd_parser = subparsers.add_parser(
+        "set-dnd",
+        help=(
+            "Write the Do Not Disturb schedule for current-generation (DC == 2) watches. "
+            "Traced from APK analysis, not yet verified against a live device -- "
+            "see REVERSE_ENGINEERING.md and GH issue #13."
+        ),
+    )
+    set_dnd_parser.add_argument("--did", required=True)
+    set_dnd_parser.add_argument("--did-id", default="")
+    set_dnd_parser.add_argument(
+        "--period",
+        action="append",
+        default=[],
+        metavar="START-END:DAYS",
+        help=(
+            "e.g. 22:00-07:00:mon,tue,wed,thu,fri. Repeat up to 4 times (one per schedule slot). "
+            "Omit entirely to clear/disable the schedule."
+        ),
+    )
 
     return parser
 
@@ -220,6 +275,13 @@ def main() -> None:
     elif args.command == "switches":
         _, did_id = client.resolve_device(args.did, args.did_id)
         response = client.find_device_switch(did=args.did, did_id=did_id)
+    elif args.command == "find-settings":
+        _, did_id = client.resolve_device(args.did, args.did_id)
+        response = client.find_set_info(did=args.did, did_id=did_id)
+    elif args.command == "set-dnd":
+        _, did_id = client.resolve_device(args.did, args.did_id)
+        periods = [_parse_dnd_period(value) for value in args.period]
+        response = client.set_dnd_schedule(did=args.did, did_id=did_id, periods=periods)
     else:
         raise SystemExit(f"unsupported command: {args.command}")
 
