@@ -27,6 +27,16 @@ DEVICE_META_KEYS = (
     "total_did_config",
 )
 
+# Do Not Disturb (current-generation, DC == 2 watches). Traced from the APK by
+# @niek in https://github.com/Niek/yqt-smart-api/issues/15 -- untested against
+# a live device/server, see DndPeriod and YQTClient.set_dnd_schedule.
+UP_NEW_DND_SET_INFO_PATH = "/S10APP/upNewDndSetInfo"
+FIND_SET_INFO_PATH_SUFFIX = "/S10APP/v2_findSetInfo"
+MAX_DND_PERIODS = 4
+DND_OPEN_FLAG_ENABLED = "2"
+DND_OPEN_FLAG_DISABLED = "1"
+DISABLED_DND_PERIOD = "00:00-00:00-0000000"
+
 
 @dataclass(frozen=True, slots=True)
 class RegionConfig:
@@ -154,6 +164,58 @@ class YQTWatchState:
     raw_response: dict[str, Any] = field(default_factory=dict)
     last_poll_status: int | None = None
     last_poll_message: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class DndPeriod:
+    """One scheduled Do Not Disturb window for current-generation (DC == 2) watches.
+
+    The watch blocks all functionality except showing the time while a period is
+    active. `weekdays` holds integers 0 (Sunday) through 6 (Saturday), matching
+    the bit order of the `new_dndN` period string the APK sends, e.g. Monday
+    through Friday is encoded as the bitmap "0111110".
+
+    This format comes from APK analysis only (see UP_NEW_DND_SET_INFO_PATH);
+    it has not been confirmed against a live account/device yet.
+    """
+
+    start: str
+    end: str
+    weekdays: frozenset[int] = field(default_factory=frozenset)
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        _validate_time_of_day(self.start)
+        _validate_time_of_day(self.end)
+        invalid_days = {day for day in self.weekdays if day not in range(7)}
+        if invalid_days:
+            raise ValueError(f"weekdays must be 0 (Sunday) through 6 (Saturday), got {sorted(invalid_days)}")
+        if self.enabled and not self.weekdays:
+            raise ValueError("an enabled DND period needs at least one weekday")
+
+    @classmethod
+    def disabled(cls) -> DndPeriod:
+        """An explicitly empty, disabled period -- used to clear/pad a schedule slot."""
+        return cls(start="00:00", end="00:00", weekdays=frozenset(), enabled=False)
+
+    @property
+    def open_flag(self) -> str:
+        return DND_OPEN_FLAG_ENABLED if self.enabled else DND_OPEN_FLAG_DISABLED
+
+    def to_period_string(self) -> str:
+        if not self.enabled:
+            return DISABLED_DND_PERIOD
+        bitmap = "".join("1" if day in self.weekdays else "0" for day in range(7))
+        return f"{self.start}-{self.end}-{bitmap}"
+
+
+def _validate_time_of_day(value: str) -> None:
+    parts = value.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"invalid HH:mm time: {value!r}")
+    hours, minutes = parts
+    if not (hours.isdigit() and minutes.isdigit() and 0 <= int(hours) <= 23 and 0 <= int(minutes) <= 59):
+        raise ValueError(f"invalid HH:mm time: {value!r}")
 
 
 def _md5_hex(value: str) -> str:

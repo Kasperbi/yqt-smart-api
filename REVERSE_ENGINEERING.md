@@ -243,6 +243,45 @@ Observed quirks:
 - Polling `v2_findLastPosition` per watch is therefore more reliable for Home
   Assistant.
 
+### Shared settings and Do Not Disturb
+
+Traced from APK `1.1.5` (version code 16) during
+[issue #15](https://github.com/Niek/yqt-smart-api/issues/15), while
+investigating whether the Do Not Disturb / quiet-hours schedule could be
+exposed through Home Assistant. Unlike the table above, these calls have not
+been confirmed against a live account/device yet -- treat them as a map for
+further work, not a guarantee of current server behavior.
+
+| Operation | Method and path | Endpoint-specific inner parameters | Evidence |
+| --- | --- | --- | --- |
+| Shared settings read (DND schedule, SOS numbers, SMS alerts, etc.) | `GET /app/{sid}/S10APP/v2_findSetInfo` | `did`, `did_id` | APK |
+| DND schedule write (current-generation, `DC == 2`) | `POST /S10APP/upNewDndSetInfo` | `sid`, `did`, `did_id`, four `new_dndN` periods, four `new_dndN_open` flags | APK |
+
+`upNewDndSetInfo` is a root-level endpoint -- it is **not** prefixed with
+`/app/{sid}`, unlike `v2_findSetInfo` and most other calls in this document.
+
+Each `new_dndN` period is formatted `HH:mm-HH:mm-xxxxxxx`, where the trailing
+7-character bitmap orders weekdays Sunday first (`0111110` = Monday through
+Friday). The matching `new_dndN_open` flag is `"2"` for enabled and `"1"` for
+disabled; a disabled slot's period string is conventionally
+`00:00-00:00-0000000`. Up to four periods are supported per watch.
+
+Older-generation watches reportedly use a different flow instead: send `D20`
+through `v2_sendOrder`, then, once the command acknowledges with `code=200`,
+save `dnd1`-`dnd3` through a generic `v2_upSetInfo` (`GET
+/app/{sid}/S10APP/v2_upSetInfo`) call. This project only implements the
+current-generation (`DC == 2`) flow so far; see
+[`custom_components/yqt/core/sync_client.py`](custom_components/yqt/core/sync_client.py)'s
+`find_set_info()` and `set_dnd_schedule()`, and
+[`yqt_client.py`](yqt_client.py)'s `find-settings` / `set-dnd` commands.
+
+The same APK trace also described several other settings groups behind
+`v2_findSetInfo` / `v2_upSetInfo` and a generic `v2_upDeviceSwitch` write for
+the switches already covered above (SOS numbers, SMS alerts, location-update
+interval, LBS/Wi-Fi track filters, call/video class-exception lists, device
+removal notices). None of those are implemented here yet; see issue #15 for
+the full trace if you want to pick one up.
+
 ## Commands and feature endpoints
 
 ### `v2_sendOrder`

@@ -8,6 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 from .protocol import (
@@ -19,8 +20,12 @@ from .protocol import (
     DEFAULT_IS_IPHONE,
     DEFAULT_LANGUAGE,
     DEFAULT_SIGN_FLAG,
+    FIND_SET_INFO_PATH_SUFFIX,
+    MAX_DND_PERIODS,
     REGIONS,
     SUCCESS_STATUSES,
+    UP_NEW_DND_SET_INFO_PATH,
+    DndPeriod,
     YQTError,
     YQTHTTPError,
     YQTResponseError,
@@ -405,6 +410,71 @@ class YQTClient:
             }
         )
         response = self._request_json("GET", path, payload)
+        self._ensure_success(response)
+        return response
+
+    def find_set_info(self, *, did: str, did_id: str = "", sid: str | None = None) -> dict[str, Any]:
+        """Fetch the shared watch-settings payload (DND schedule, SOS numbers, SMS alerts, etc.).
+
+        This is the read-side counterpart traced alongside several write flows in
+        https://github.com/Niek/yqt-smart-api/issues/15, including
+        set_dnd_schedule(). The response shape beyond the DND fields is not
+        parsed into typed data yet; callers interested in another settings
+        group should read the raw payload for now.
+        """
+        did, did_id = self.resolve_device(did, did_id)
+        path = self._session_path(sid, FIND_SET_INFO_PATH_SUFFIX)
+        payload = self._signed_params(
+            {
+                "did_id": did_id,
+                "did": did,
+                "language": self.language,
+            }
+        )
+        response = self._request_json("GET", path, payload)
+        self._ensure_success(response)
+        return response
+
+    def set_dnd_schedule(
+        self,
+        *,
+        did: str,
+        did_id: str = "",
+        periods: Sequence[DndPeriod] = (),
+        sid: str | None = None,
+    ) -> dict[str, Any]:
+        """Write the Do Not Disturb schedule for current-generation (DC == 2) watches.
+
+        `periods` takes up to MAX_DND_PERIODS DndPeriod entries; any remaining
+        slots are sent as disabled. Unlike most calls here, upNewDndSetInfo is a
+        root-level endpoint (no "/app/{sid}" prefix) -- see
+        https://github.com/Niek/yqt-smart-api/issues/15 for why it is kept
+        separate from _session_path()-based calls.
+
+        Traced from APK analysis only; not yet confirmed against a live
+        account/device, so treat the result with caution and verify the watch
+        actually honors the schedule before relying on it.
+        """
+        if len(periods) > MAX_DND_PERIODS:
+            raise YQTError(f"set_dnd_schedule supports at most {MAX_DND_PERIODS} periods, got {len(periods)}")
+
+        did, did_id = self.resolve_device(did, did_id)
+        session = sid or self.session_id
+        if not session:
+            raise YQTError("session_id is required; call login() first or pass sid= explicitly")
+
+        padded_periods = list(periods) + [DndPeriod.disabled()] * (MAX_DND_PERIODS - len(periods))
+        payload: dict[str, Any] = {
+            "sid": session,
+            "did": did,
+            "did_id": did_id,
+            "language": self.language,
+        }
+        for index, period in enumerate(padded_periods, start=1):
+            payload[f"new_dnd{index}"] = period.to_period_string()
+            payload[f"new_dnd{index}_open"] = period.open_flag
+
+        response = self._request_json("POST", UP_NEW_DND_SET_INFO_PATH, self._signed_params(payload))
         self._ensure_success(response)
         return response
 
