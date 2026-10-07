@@ -377,7 +377,7 @@ class ApiHelpersTestCase(unittest.TestCase):
 
 
 class DndPeriodTestCase(unittest.TestCase):
-    """DndPeriod formatting, per the APK tracing in GH issue #15 (untested live)."""
+    """DndPeriod formatting, per the APK tracing in GH issue #13 (untested live)."""
 
     def test_to_period_string_encodes_weekday_bitmap_sunday_first(self) -> None:
         # Monday-Friday -> "0111110" (Sunday..Saturday, Sunday first).
@@ -407,7 +407,7 @@ class DndPeriodTestCase(unittest.TestCase):
 
 
 class DndScheduleClientTestCase(unittest.TestCase):
-    """YQTClient.find_set_info / set_dnd_schedule, per GH issue #15 (untested live)."""
+    """YQTClient.find_set_info / set_dnd_schedule, per GH issue #13 (untested live)."""
 
     def _client(self) -> YQTClient:
         client = YQTClient(region="europe", session_id="abc123")

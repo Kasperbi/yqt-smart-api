@@ -246,7 +246,7 @@ Observed quirks:
 ### Shared settings and Do Not Disturb
 
 Traced from APK `1.1.5` (version code 16) during
-[issue #15](https://github.com/Niek/yqt-smart-api/issues/15), while
+[issue #13](https://github.com/Niek/yqt-smart-api/issues/13), while
 investigating whether the Do Not Disturb / quiet-hours schedule could be
 exposed through Home Assistant. Unlike the table above, these calls have not
 been confirmed against a live account/device yet -- treat them as a map for
@@ -279,7 +279,7 @@ The same APK trace also described several other settings groups behind
 `v2_findSetInfo` / `v2_upSetInfo` and a generic `v2_upDeviceSwitch` write for
 the switches already covered above (SOS numbers, SMS alerts, location-update
 interval, LBS/Wi-Fi track filters, call/video class-exception lists, device
-removal notices). None of those are implemented here yet; see issue #15 for
+removal notices). None of those are implemented here yet; see issue #13 for
 the full trace if you want to pick one up.
 
 ## Commands and feature endpoints

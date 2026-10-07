@@ -417,7 +417,7 @@ class YQTClient:
         """Fetch the shared watch-settings payload (DND schedule, SOS numbers, SMS alerts, etc.).
 
         This is the read-side counterpart traced alongside several write flows in
-        https://github.com/Niek/yqt-smart-api/issues/15, including
+        https://github.com/Niek/yqt-smart-api/issues/13, including
         set_dnd_schedule(). The response shape beyond the DND fields is not
         parsed into typed data yet; callers interested in another settings
         group should read the raw payload for now.
@@ -448,7 +448,7 @@ class YQTClient:
         `periods` takes up to MAX_DND_PERIODS DndPeriod entries; any remaining
         slots are sent as disabled. Unlike most calls here, upNewDndSetInfo is a
         root-level endpoint (no "/app/{sid}" prefix) -- see
-        https://github.com/Niek/yqt-smart-api/issues/15 for why it is kept
+        https://github.com/Niek/yqt-smart-api/issues/13 for why it is kept
         separate from _session_path()-based calls.
 
         Traced from APK analysis only; not yet confirmed against a live

@@ -28,7 +28,7 @@ DEVICE_META_KEYS = (
 )
 
 # Do Not Disturb (current-generation, DC == 2 watches). Traced from the APK by
-# @niek in https://github.com/Niek/yqt-smart-api/issues/15 -- untested against
+# @niek in https://github.com/Niek/yqt-smart-api/issues/13 -- untested against
 # a live device/server, see DndPeriod and YQTClient.set_dnd_schedule.
 UP_NEW_DND_SET_INFO_PATH = "/S10APP/upNewDndSetInfo"
 FIND_SET_INFO_PATH_SUFFIX = "/S10APP/v2_findSetInfo"
