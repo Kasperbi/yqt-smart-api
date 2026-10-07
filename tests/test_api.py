@@ -17,6 +17,7 @@ from custom_components.yqt.core.protocol import (
     UP_NEW_DND_SET_INFO_PATH,
     DndPeriod,
     YQTError,
+    extract_dnd_periods,
     YQTResponseError,
     YQTWatch,
     YQTWatchState,
@@ -404,6 +405,72 @@ class DndPeriodTestCase(unittest.TestCase):
             DndPeriod(start="22:00", end="07:99", weekdays=frozenset({1}))
         with self.assertRaises(ValueError):
             DndPeriod(start="22:00", end="07:00", weekdays=frozenset({7}))
+
+    def test_from_period_string_round_trips_with_to_period_string(self) -> None:
+        original = DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1, 2, 3, 4, 5}))
+        parsed = DndPeriod.from_period_string(original.to_period_string(), original.open_flag)
+        self.assertEqual(parsed, original)
+
+    def test_from_period_string_disabled_flag_ignores_period_text(self) -> None:
+        parsed = DndPeriod.from_period_string("22:00-07:00-0111110", open_flag="1")
+        self.assertEqual(parsed, DndPeriod.disabled())
+
+    def test_from_period_string_rejects_malformed_period(self) -> None:
+        with self.assertRaises(ValueError):
+            DndPeriod.from_period_string("not-a-period", open_flag="2")
+        with self.assertRaises(ValueError):
+            DndPeriod.from_period_string("22:00-07:00-01", open_flag="2")
+
+
+class ExtractDndPeriodsTestCase(unittest.TestCase):
+    """extract_dnd_periods's best-effort parse of a (format-unconfirmed) v2_findSetInfo reply."""
+
+    def test_returns_none_when_no_dnd_fields_are_present(self) -> None:
+        self.assertIsNone(extract_dnd_periods({"status": 1, "data": {"sos_numbers": []}}))
+
+    def test_parses_fields_nested_under_data_dict(self) -> None:
+        payload = {
+            "status": 1,
+            "data": {
+                "new_dnd1": "22:00-07:00-0111110",
+                "new_dnd1_open": "2",
+                "new_dnd2": DISABLED_DND_PERIOD,
+                "new_dnd2_open": "1",
+            },
+        }
+        periods = extract_dnd_periods(payload)
+        self.assertEqual(len(periods), 2)
+        self.assertEqual(
+            periods[0],
+            DndPeriod(start="22:00", end="07:00", weekdays=frozenset({1, 2, 3, 4, 5})),
+        )
+        self.assertEqual(periods[1], DndPeriod.disabled())
+
+    def test_parses_fields_at_top_level_when_data_is_not_a_dict(self) -> None:
+        payload = {
+            "status": 1,
+            "data": [],
+            "new_dnd1": "12:00-13:00-1000001",
+            "new_dnd1_open": "2",
+        }
+        periods = extract_dnd_periods(payload)
+        self.assertEqual(
+            periods,
+            [DndPeriod(start="12:00", end="13:00", weekdays=frozenset({0, 6}))],
+        )
+
+    def test_skips_slots_with_unparseable_period_strings(self) -> None:
+        payload = {
+            "data": {
+                "new_dnd1": "garbage",
+                "new_dnd1_open": "2",
+                "new_dnd2": "22:00-07:00-0111110",
+                "new_dnd2_open": "2",
+            },
+        }
+        periods = extract_dnd_periods(payload)
+        self.assertEqual(len(periods), 1)
+        self.assertEqual(periods[0].start, "22:00")
 
 
 class DndScheduleClientTestCase(unittest.TestCase):

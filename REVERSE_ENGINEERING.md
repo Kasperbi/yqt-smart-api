@@ -407,6 +407,14 @@ last position, and exposes:
 - disabled-by-default Wi-Fi and cell-tower diagnostic sensors
 - a stale-location binary sensor
 - a button that sends `D3` and schedules a later refresh
+- a Do Not Disturb schedule sensor, polled separately and far less often
+  (`YQTDndSettingsCoordinator`, every 30 minutes) from `v2_findSetInfo`, since
+  that endpoint's response shape is unconfirmed; it can legitimately read
+  "Unknown" on a given account, and always exposes the raw response as a
+  `raw_find_set_info` attribute so the real field names can be checked and
+  `extract_dnd_periods` corrected once this is tested live. Setting the
+  schedule (`set_dnd_schedule` / `upNewDndSetInfo`) is not yet wired up as a
+  Home Assistant service -- only the CLI's `set-dnd` command calls it so far.
 
 Installation and user-facing feature documentation belongs in
 [`README.md`](README.md), rather than this protocol reference.

@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfSpeed
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER
+from .coordinator import YQTDataUpdateCoordinator, YQTDndSettingsCoordinator
+from .core.protocol import DndPeriod, extract_dnd_periods
 from .entity import YQTEntity
+
+_WEEKDAY_NAMES = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 
 
 async def async_setup_entry(
@@ -16,7 +24,9 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    runtime = hass.data[DOMAIN][entry.entry_id]
+    coordinator = runtime["coordinator"]
+    dnd_coordinator = runtime["dnd_coordinator"]
     entities = []
     for did in coordinator.data:
         entities.append(YQTBatterySensor(coordinator, did))
@@ -24,6 +34,7 @@ async def async_setup_entry(
         entities.append(YQTSpeedSensor(coordinator, did))
         entities.append(YQTWifiAccessPointsSensor(coordinator, did))
         entities.append(YQTCellTowersSensor(coordinator, did))
+        entities.append(YQTDndSensor(dnd_coordinator, coordinator, did))
     async_add_entities(entities)
 
 
@@ -104,3 +115,84 @@ class YQTCellTowersSensor(YQTEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         return {"cell_towers": self.snapshot.cell_towers}
+
+
+class YQTDndSensor(CoordinatorEntity[YQTDndSettingsCoordinator], SensorEntity):
+    """Shows the watch's Do Not Disturb schedule, read from `v2_findSetInfo`.
+
+    That endpoint is traced from APK analysis only and not yet confirmed
+    against a live server (see REVERSE_ENGINEERING.md and issue #13), so this
+    entity can legitimately sit at "Unknown" if the account's server doesn't
+    return the fields it expects -- `raw_find_set_info` is always exposed as
+    an attribute so the actual response shape can be inspected and this
+    parsing corrected.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "dnd_schedule"
+    _attr_icon = "mdi:bell-sleep"
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(
+        self,
+        dnd_coordinator: YQTDndSettingsCoordinator,
+        main_coordinator: YQTDataUpdateCoordinator,
+        did: str,
+    ) -> None:
+        super().__init__(dnd_coordinator)
+        self._main_coordinator = main_coordinator
+        self._did = did
+        self._attr_unique_id = f"{did}_dnd_schedule"
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success and self._did in self.coordinator.data
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        watch = self._main_coordinator.data[self._did].watch
+        return DeviceInfo(
+            identifiers={(DOMAIN, watch.did)},
+            name=watch.name,
+            manufacturer=MANUFACTURER,
+            model=watch.model or None,
+            serial_number=watch.did,
+        )
+
+    @property
+    def native_value(self) -> str:
+        periods = self._periods()
+        if periods is None:
+            return "unknown"
+        active = [period for period in periods if period.enabled]
+        if not active:
+            return "off"
+        return "; ".join(self._describe(period) for period in active)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        raw = self.coordinator.data.get(self._did, {})
+        attributes: dict[str, Any] = {"raw_find_set_info": raw}
+        periods = self._periods()
+        if periods is not None:
+            attributes["periods"] = [
+                {
+                    "start": period.start,
+                    "end": period.end,
+                    "weekdays": sorted(period.weekdays),
+                    "enabled": period.enabled,
+                }
+                for period in periods
+            ]
+        return attributes
+
+    def _periods(self) -> list[DndPeriod] | None:
+        raw = self.coordinator.data.get(self._did)
+        if raw is None:
+            return None
+        return extract_dnd_periods(raw)
+
+    @staticmethod
+    def _describe(period: DndPeriod) -> str:
+        days = ",".join(_WEEKDAY_NAMES[day] for day in sorted(period.weekdays))
+        return f"{period.start}-{period.end} ({days})"

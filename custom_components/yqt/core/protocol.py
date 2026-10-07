@@ -208,6 +208,60 @@ class DndPeriod:
         bitmap = "".join("1" if day in self.weekdays else "0" for day in range(7))
         return f"{self.start}-{self.end}-{bitmap}"
 
+    @classmethod
+    def from_period_string(cls, period: str, open_flag: str) -> DndPeriod:
+        """Parse one `new_dndN` period string plus its `new_dndN_open` flag.
+
+        The inverse of `to_period_string`/`open_flag`. Raises ValueError if
+        `period` isn't `HH:mm-HH:mm-bitmap` (7 characters of 0/1) or the
+        bitmap is empty while the flag claims the period is enabled.
+        """
+        if open_flag != DND_OPEN_FLAG_ENABLED or period == DISABLED_DND_PERIOD:
+            return cls.disabled()
+
+        parts = period.split("-")
+        if len(parts) != 3:
+            raise ValueError(f"invalid DND period string: {period!r}")
+        start, end, bitmap = parts
+        if len(bitmap) != 7 or any(char not in "01" for char in bitmap):
+            raise ValueError(f"invalid DND weekday bitmap: {bitmap!r}")
+        weekdays = frozenset(day for day, flag in enumerate(bitmap) if flag == "1")
+        return cls(start=start, end=end, weekdays=weekdays, enabled=True)
+
+
+def extract_dnd_periods(payload: dict[str, Any]) -> list[DndPeriod] | None:
+    """Best-effort extraction of DND periods from a `v2_findSetInfo` response.
+
+    The write side (`upNewDndSetInfo`) is traced from the APK and known to use
+    `new_dndN` / `new_dndN_open` fields (see DndPeriod). The *read* side's
+    response shape has not been confirmed against a live server at all -- this
+    assumes it mirrors the same field names, optionally nested under a `data`
+    dict (or the first item of a `data` list), and returns None rather than
+    guessing when none of those fields are present, so callers can fall back
+    to showing the raw payload instead of a wrong parse.
+    """
+    source: dict[str, Any] = payload
+    data = payload.get("data")
+    if isinstance(data, dict):
+        source = data
+    elif isinstance(data, list) and data and isinstance(data[0], dict):
+        source = data[0]
+
+    if not any(f"new_dnd{index}" in source for index in range(1, MAX_DND_PERIODS + 1)):
+        return None
+
+    periods: list[DndPeriod] = []
+    for index in range(1, MAX_DND_PERIODS + 1):
+        period_str = source.get(f"new_dnd{index}")
+        if period_str is None:
+            continue
+        open_flag = source.get(f"new_dnd{index}_open")
+        try:
+            periods.append(DndPeriod.from_period_string(str(period_str), str(open_flag)))
+        except ValueError:
+            continue
+    return periods
+
 
 def _validate_time_of_day(value: str) -> None:
     parts = value.split(":")

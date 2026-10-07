@@ -22,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
     from .core.async_client import YQTApiClient
-    from .coordinator import YQTDataUpdateCoordinator
+    from .coordinator import YQTDataUpdateCoordinator, YQTDndSettingsCoordinator
 
     session = async_create_clientsession(
         hass,
@@ -37,9 +37,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = YQTDataUpdateCoordinator(hass, client)
     await coordinator.async_config_entry_first_refresh()
 
+    # Unverified endpoint (see YQTDndSettingsCoordinator) -- a plain refresh
+    # rather than async_config_entry_first_refresh(), so it can't block setup
+    # of the rest of the entry if it doesn't work against this account.
+    dnd_coordinator = YQTDndSettingsCoordinator(hass, client, coordinator)
+    await dnd_coordinator.async_refresh()
+
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
+        "dnd_coordinator": dnd_coordinator,
     }
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))

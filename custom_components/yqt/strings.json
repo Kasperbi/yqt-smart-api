@@ -50,6 +50,9 @@
       },
       "cell_towers": {
         "name": "Cell towers"
+      },
+      "dnd_schedule": {
+        "name": "Do Not Disturb schedule"
       }
     },
     "binary_sensor": {

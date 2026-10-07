@@ -17,6 +17,7 @@ from .protocol import (
     DEFAULT_IS_IPHONE,
     DEFAULT_LANGUAGE,
     DEFAULT_SIGN_FLAG,
+    FIND_SET_INFO_PATH_SUFFIX,
     REGIONS,
     SUCCESS_STATUSES,
     YQTAuthError,
@@ -178,6 +179,35 @@ class YQTApiClient:
         self._ensure_status(response, SUCCESS_STATUSES | {2})
         response.setdefault("data", [])
         return response
+
+    async def async_find_set_info(self, did: str) -> dict[str, Any]:
+        """Fetch the shared watch-settings payload (DND schedule, SOS numbers, etc.).
+
+        Traced from APK analysis, not yet confirmed against a live server --
+        see FIND_SET_INFO_PATH_SUFFIX and protocol.extract_dnd_periods.
+        """
+        watch = await self._async_ensure_watch(did)
+        response = await self._async_find_set_info_once(watch)
+        if is_login_timeout_response(response):
+            await self._async_reauthenticate()
+            refreshed = self._watches.get(did, watch)
+            response = await self._async_find_set_info_once(refreshed)
+        self._ensure_status(response, SUCCESS_STATUSES)
+        return response
+
+    async def _async_find_set_info_once(self, watch: YQTWatch) -> dict[str, Any]:
+        payload = self._signed_params(
+            {
+                "language": self.language,
+                "did_id": watch.did_id,
+                "did": watch.did,
+            }
+        )
+        return await self._request_json(
+            "GET",
+            self._session_path(FIND_SET_INFO_PATH_SUFFIX),
+            params=payload,
+        )
 
     async def _async_ensure_watch(self, did: str) -> YQTWatch:
         if did not in self._watches or not self.session_id:
