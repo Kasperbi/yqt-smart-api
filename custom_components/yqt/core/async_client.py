@@ -218,8 +218,8 @@ class YQTApiClient:
 
         Mirrors YQTClient.set_dnd_schedule (see sync_client.py). Unlike most
         calls here, upNewDndSetInfo is a root-level endpoint (no "/app/{sid}"
-        prefix). Traced from APK analysis only; not yet confirmed against a
-        live account/device.
+        prefix). Traced from APK analysis and confirmed working against a
+        live device as of 2026-10-08 (see issue #13).
         """
         if len(periods) > MAX_DND_PERIODS:
             raise YQTError(f"async_set_dnd_schedule supports at most {MAX_DND_PERIODS} periods, got {len(periods)}")

@@ -59,10 +59,9 @@ data:
 ```
 
 Omit `periods` entirely (or pass an empty list) to clear/disable the
-schedule. Only works for current-generation (`DC == 2`) watches, and -- like
-the sensor above -- is traced from APK analysis only; see
-[`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md) for details and
-verify your watch actually honors it before relying on it.
+schedule. Only works for current-generation (`DC == 2`) watches; traced from
+APK analysis and confirmed working against a live device as of 2026-10-08 --
+see [`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md) for details.
 
 ## Command-line client
 
@@ -79,10 +78,10 @@ With [uv](https://docs.astral.sh/uv/) installed:
 Run `./yqt_client.py --help` for all commands. The CLI and integration share the same code in `custom_components/yqt/core/`.
 
 `set-dnd` writes the Do Not Disturb schedule for current-generation (`DC == 2`)
-watches; it's traced from APK analysis and not yet verified against a live
-device -- see [`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md) and
-[issue #13](https://github.com/Niek/yqt-smart-api/issues/13). Omit `--period`
-entirely to clear/disable the schedule.
+watches; it's traced from APK analysis and confirmed working against a live
+device as of 2026-10-08 -- see [`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md)
+and [issue #13](https://github.com/Niek/yqt-smart-api/issues/13). Omit
+`--period` entirely to clear/disable the schedule.
 
 ## Disclaimer
 

@@ -248,14 +248,15 @@ Observed quirks:
 Traced from APK `1.1.5` (version code 16) during
 [issue #13](https://github.com/Niek/yqt-smart-api/issues/13), while
 investigating whether the Do Not Disturb / quiet-hours schedule could be
-exposed through Home Assistant. Unlike the table above, these calls have not
-been confirmed against a live account/device yet -- treat them as a map for
-further work, not a guarantee of current server behavior.
+exposed through Home Assistant. The write side was confirmed against a live
+device on 2026-10-08 (see `yqt.set_dnd_schedule` / `set-dnd`); the read side
+(`v2_findSetInfo`'s response shape) is still unconfirmed -- treat it as a map
+for further work, not a guarantee of current server behavior.
 
 | Operation | Method and path | Endpoint-specific inner parameters | Evidence |
 | --- | --- | --- | --- |
 | Shared settings read (DND schedule, SOS numbers, SMS alerts, etc.) | `GET /app/{sid}/S10APP/v2_findSetInfo` | `did`, `did_id` | APK |
-| DND schedule write (current-generation, `DC == 2`) | `POST /S10APP/upNewDndSetInfo` | `sid`, `did`, `did_id`, four `new_dndN` periods, four `new_dndN_open` flags | APK |
+| DND schedule write (current-generation, `DC == 2`) | `POST /S10APP/upNewDndSetInfo` | `sid`, `did`, `did_id`, four `new_dndN` periods, four `new_dndN_open` flags | Live-confirmed 2026-10-08 |
 
 `upNewDndSetInfo` is a root-level endpoint -- it is **not** prefixed with
 `/app/{sid}`, unlike `v2_findSetInfo` and most other calls in this document.

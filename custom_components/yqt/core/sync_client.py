@@ -451,9 +451,8 @@ class YQTClient:
         https://github.com/Niek/yqt-smart-api/issues/13 for why it is kept
         separate from _session_path()-based calls.
 
-        Traced from APK analysis only; not yet confirmed against a live
-        account/device, so treat the result with caution and verify the watch
-        actually honors the schedule before relying on it.
+        Traced from APK analysis and confirmed working against a live device
+        as of 2026-10-08 (see issue #13) for current-generation watches.
         """
         if len(periods) > MAX_DND_PERIODS:
             raise YQTError(f"set_dnd_schedule supports at most {MAX_DND_PERIODS} periods, got {len(periods)}")

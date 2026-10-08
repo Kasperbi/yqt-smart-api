@@ -118,8 +118,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "set-dnd",
         help=(
             "Write the Do Not Disturb schedule for current-generation (DC == 2) watches. "
-            "Traced from APK analysis, not yet verified against a live device -- "
-            "see REVERSE_ENGINEERING.md and GH issue #13."
+            "Traced from APK analysis and confirmed working against a live device "
+            "as of 2026-10-08 -- see REVERSE_ENGINEERING.md and GH issue #13."
         ),
     )
     set_dnd_parser.add_argument("--did", required=True)
