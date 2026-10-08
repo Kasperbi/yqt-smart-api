@@ -42,9 +42,10 @@ Each watch becomes a device with:
 - a button to request a fresh location
 - diagnostic sensors for nearby Wi-Fi access points and cell towers (disabled by default)
 - a Do Not Disturb schedule sensor. It reads the watch's shared settings
-  endpoint, which is traced from APK analysis only and not yet confirmed
-  against a live server, so it can legitimately show "Unknown" -- the raw
-  server response is always available as an attribute on the sensor.
+  endpoint, traced from APK analysis and confirmed working against a live
+  device as of 2026-10-08. It can still legitimately show "Unknown" on a
+  watch/account where the response doesn't match -- the raw server response
+  is always available as an attribute on the sensor.
 
 The integration also registers a **`yqt.set_dnd_schedule`** service to write
 the schedule, usable from Developer Tools, scripts, or automations:

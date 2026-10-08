@@ -83,11 +83,12 @@ class YQTDataUpdateCoordinator(DataUpdateCoordinator[dict[str, YQTWatchState]]):
 class YQTDndSettingsCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     """Polls the shared watch-settings endpoint (`v2_findSetInfo`) for DND info.
 
-    This endpoint was traced from APK analysis only (see issue #13) and is not
-    confirmed to work against a live server. A failure here is logged and only
-    marks this coordinator's own entities unavailable -- it must never take
-    down `YQTDataUpdateCoordinator`, whose `v2_findLastPosition` polling is
-    known-good.
+    This endpoint was traced from APK analysis (see issue #13) and confirmed
+    working against a live device on 2026-10-08. Kept on its own, slower poll
+    (rather than folded into the main coordinator) so a failure here -- on an
+    account where it doesn't work, say -- only marks this coordinator's own
+    entities unavailable; it must never take down `YQTDataUpdateCoordinator`,
+    whose `v2_findLastPosition` polling is known-good.
     """
 
     def __init__(self, hass: HomeAssistant, client: YQTApiClient, main_coordinator: YQTDataUpdateCoordinator) -> None:
@@ -108,5 +109,5 @@ class YQTDndSettingsCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             except YQTAuthError as exc:
                 raise ConfigEntryAuthFailed(str(exc)) from exc
             except YQTError as exc:
-                _LOGGER.debug("find_set_info failed for %s (unverified endpoint): %s", did, exc)
+                _LOGGER.debug("find_set_info failed for %s: %s", did, exc)
         return results

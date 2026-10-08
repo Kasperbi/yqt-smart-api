@@ -28,10 +28,10 @@ DEVICE_META_KEYS = (
 )
 
 # Do Not Disturb (current-generation, DC == 2 watches). Traced from the APK by
-# @niek in https://github.com/Niek/yqt-smart-api/issues/13. Writing (upNewDndSetInfo)
-# is confirmed working against a live device as of 2026-10-08 -- see DndPeriod
-# and YQTClient.set_dnd_schedule. Reading (v2_findSetInfo) is not yet confirmed;
-# its response shape is still a guess, see extract_dnd_periods.
+# @niek in https://github.com/Niek/yqt-smart-api/issues/13. Both writing
+# (upNewDndSetInfo, see DndPeriod and YQTClient.set_dnd_schedule) and reading
+# (v2_findSetInfo, see extract_dnd_periods) are confirmed working against a
+# live device as of 2026-10-08.
 UP_NEW_DND_SET_INFO_PATH = "/S10APP/upNewDndSetInfo"
 FIND_SET_INFO_PATH_SUFFIX = "/S10APP/v2_findSetInfo"
 MAX_DND_PERIODS = 4

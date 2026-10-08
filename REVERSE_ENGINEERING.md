@@ -248,14 +248,14 @@ Observed quirks:
 Traced from APK `1.1.5` (version code 16) during
 [issue #13](https://github.com/Niek/yqt-smart-api/issues/13), while
 investigating whether the Do Not Disturb / quiet-hours schedule could be
-exposed through Home Assistant. The write side was confirmed against a live
-device on 2026-10-08 (see `yqt.set_dnd_schedule` / `set-dnd`); the read side
-(`v2_findSetInfo`'s response shape) is still unconfirmed -- treat it as a map
-for further work, not a guarantee of current server behavior.
+exposed through Home Assistant. Both the write (`yqt.set_dnd_schedule` /
+`set-dnd`) and read (`v2_findSetInfo` / the DND sensor) sides were confirmed
+against a live device on 2026-10-08, including that the watch does support
+the full `MAX_DND_PERIODS = 4` schedule slots this code assumed.
 
 | Operation | Method and path | Endpoint-specific inner parameters | Evidence |
 | --- | --- | --- | --- |
-| Shared settings read (DND schedule, SOS numbers, SMS alerts, etc.) | `GET /app/{sid}/S10APP/v2_findSetInfo` | `did`, `did_id` | APK |
+| Shared settings read (DND schedule, SOS numbers, SMS alerts, etc.) | `GET /app/{sid}/S10APP/v2_findSetInfo` | `did`, `did_id` | Live-confirmed 2026-10-08 (DND fields only; other settings groups still APK-only) |
 | DND schedule write (current-generation, `DC == 2`) | `POST /S10APP/upNewDndSetInfo` | `sid`, `did`, `did_id`, four `new_dndN` periods, four `new_dndN_open` flags | Live-confirmed 2026-10-08 |
 
 `upNewDndSetInfo` is a root-level endpoint -- it is **not** prefixed with
@@ -409,11 +409,11 @@ last position, and exposes:
 - a stale-location binary sensor
 - a button that sends `D3` and schedules a later refresh
 - a Do Not Disturb schedule sensor, polled separately and far less often
-  (`YQTDndSettingsCoordinator`, every 30 minutes) from `v2_findSetInfo`, since
-  that endpoint's response shape is unconfirmed; it can legitimately read
-  "Unknown" on a given account, and always exposes the raw response as a
-  `raw_find_set_info` attribute so the real field names can be checked and
-  `extract_dnd_periods` corrected once this is tested live.
+  (`YQTDndSettingsCoordinator`, every 30 minutes) from `v2_findSetInfo`,
+  confirmed working live on 2026-10-08; it can still legitimately read
+  "Unknown" on an account/watch where the response doesn't match, and always
+  exposes the raw response as a `raw_find_set_info` attribute so that can be
+  diagnosed.
 - a `yqt.set_dnd_schedule` service (writes the schedule via
   `YQTApiClient.async_set_dnd_schedule` / `upNewDndSetInfo`), targeting one or
   more watch devices and taking a `periods` list of `"START-END:DAYS"`

@@ -120,12 +120,12 @@ class YQTCellTowersSensor(YQTEntity, SensorEntity):
 class YQTDndSensor(CoordinatorEntity[YQTDndSettingsCoordinator], SensorEntity):
     """Shows the watch's Do Not Disturb schedule, read from `v2_findSetInfo`.
 
-    That endpoint is traced from APK analysis only and not yet confirmed
-    against a live server (see REVERSE_ENGINEERING.md and issue #13), so this
-    entity can legitimately sit at "Unknown" if the account's server doesn't
-    return the fields it expects -- `raw_find_set_info` is always exposed as
-    an attribute so the actual response shape can be inspected and this
-    parsing corrected.
+    That endpoint is traced from APK analysis and confirmed working against a
+    live device on 2026-10-08 (see REVERSE_ENGINEERING.md and issue #13), but
+    it can still legitimately sit at "Unknown" on an account/watch generation
+    where the response doesn't match -- `raw_find_set_info` is always exposed
+    as an attribute so the actual response shape can be inspected and this
+    parsing corrected if needed.
     """
 
     _attr_has_entity_name = True

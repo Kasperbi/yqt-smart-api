@@ -187,8 +187,9 @@ class YQTApiClient:
     async def async_find_set_info(self, did: str) -> dict[str, Any]:
         """Fetch the shared watch-settings payload (DND schedule, SOS numbers, etc.).
 
-        Traced from APK analysis, not yet confirmed against a live server --
-        see FIND_SET_INFO_PATH_SUFFIX and protocol.extract_dnd_periods.
+        Traced from APK analysis and confirmed working against a live device
+        as of 2026-10-08 -- see FIND_SET_INFO_PATH_SUFFIX and
+        protocol.extract_dnd_periods.
         """
         watch = await self._async_ensure_watch(did)
         response = await self._async_find_set_info_once(watch)
